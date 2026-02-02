@@ -70,7 +70,7 @@ P0=20.0
 
 usage_dict_global = defaultdict(list)
 
-def P_app(duration=1, name="app", bat_drain=0.01, disp=False, stream=False, base=0, I=125, clock_speed='med', usage_dict=False):
+def P_app(duration=1, name="app", bat_drain=0.01, disp=False, stream=False, base=0, I=125, clock_speed='med', usage_dict=False, brightness=0.5, screen_size=10568.16):
     energy_loss=bat_drain*max_bat
     drain=energy_loss/(duration/60)
     drain-=base
@@ -200,10 +200,10 @@ def model_usage(events, P_dom):
         P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, P_dom[time], I, speed)
     return P
 
-def simulate(events, P_dom, usage_dict):
+def simulate(events, P_dom, usage_dict, brightness, screen_size):
     P=P_dom.copy()
     for time, duration, name, bat_drain, display, stream, I, speed in events:
-        P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, P_dom[time], I, speed, usage_dict)
+        P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, P_dom[time], I, speed, usage_dict, brightness, screen_size)
     return P
 
 P_mods=[]
@@ -219,18 +219,18 @@ for k, v in usage_dict_global.items():
 #Average chip usage for now
 usage_dict_avg = {k: float(np.mean(v)) for k, v in usage_dict_global.items()}
 for i in range(num_samples):
-    P_sims.append(simulate(events_sim[i], P_doms[i], usage_dict_avg))
+    P_sims.append([simulate(events_sim[i], P_doms[i], usage_dict_avg, 0.5, screen_size), simulate(events_sim[i], P_doms[i], usage_dict_avg, 0.5, screen_size)])
 
 t_ticknames = [i for i in range(1, 37, 5)]
 t_tickvals = np.array(t_ticknames)*60
 
-def analyze_power(P, max_bat):
+def analyze_power(P, max_bat, up=1, label=None):
     E = max_bat-np.cumsum(P)/60
     E_perc = E/max_bat
     idx_empty = np.abs(E).argmin()
 
     def plot_fig(y, name):
-        plt.plot(t, y)
+        plt.plot(t, y, label=label)
         plt.xticks(t_tickvals, t_ticknames)
         plt.grid()
         plt.title(name)
@@ -243,17 +243,35 @@ def analyze_power(P, max_bat):
     plt.subplot(2, 1, 2)
     plot_fig(E_perc, 'Battery life (percent of full) vs time (hours)')
     plt.scatter(t[idx_empty], E_perc[idx_empty])
+    up_mod = -5 if up<0 else 0
     plt.annotate(
         f"{t[idx_empty]//60}",
         (t[idx_empty], E_perc[idx_empty]),
         textcoords="offset points",
-        xytext=(4, 4)
+        xytext=(-5, 5*up+up_mod)
     )
     #plt.plot(t, [0]*len(t))
 
 for i in range(num_samples):
     plt.figure()
-    analyze_power(P_mods[i], max_bat)
-    plt.figure()
-    analyze_power(P_sims[i], max_bat)
+    sim5=P_sims[i][0].copy()
+    sim5+=P_base(BT=True)
+    sim1 = P_sims[i][0].copy()
+    sim1-=P_doms[1]
+    sim1+=P0
+    sim2=sim1.copy()
+    sim3=sim1.copy()
+    sim4=sim1.copy()
+    sim1+=P_base(wifi='connected')
+    sim2+=P_base(cell='5G')
+    sim3+=P_base(cell='5G', wifi='searching')
+    sim4+=P_base(cell='LTE')
+    analyze_power(P_mods[i], max_bat, -1, label='mixed wifi and 5G searching')
+    analyze_power(sim1, max_bat, label='only wifi')
+    analyze_power(sim2, max_bat, label='only 5G')
+    analyze_power(sim3, max_bat, label='only 5G with wifi searching')
+    analyze_power(sim4, max_bat, label='only LTE')
+    analyze_power(sim5, max_bat, -1, label='mixed wifi and 5G searching with BT')
+    plt.legend()
+    plt.tight_layout()
     plt.show()
