@@ -35,7 +35,7 @@ def get_usage(P, clock_speed='med', N=6):
     return (P-b)/m
 
 def P_base(cell=0, wifi=0, BT=0):
-    sum=20
+    sum=0
     if cell=='5G':
         sum+=260
     elif cell=='LTE':
@@ -66,6 +66,7 @@ brightness=0.5 #My brightness was constant all day
 screen_size = 10568.16 #milimeters^2
 power_area_density=0.000000552 #guessed from figure
 cores=6
+P0=20.0
 
 usage_dict_global = defaultdict(list)
 
@@ -95,81 +96,164 @@ def P_app(duration=1, name="app", bat_drain=0.01, disp=False, stream=False, base
 
 duration = 40*60
 t=np.arange(duration) #minutes
-#Create baseline usages first
-P = np.array([0.0]*duration)
-#I had my watch connected via BT all day
-P+=P_base(BT=1)
-# I was connected to wifi until 5 am
-P[0:5*60]+=P_base(wifi='connected')
-# Until 2PM I never turned off my wifi but was connected to 5G
-P[5*60:14*60]+=P_base(cell='5G', wifi='searching')
-#Until 8PM I was connected to wifi
-P[14*60:]+= P_base(wifi='connected')
+P_doms = []
+num_samples = 2
+for _ in range(num_samples):
+    P_doms.append(np.array([P0]*duration))
 
-base=P.copy()
+#Sample 1
+#I had my watch connected via BT all day
+P_doms[0]+=P_base(BT=1)
+# I was connected to wifi until 5 am
+P_doms[0][0:5*60]+=P_base(wifi='connected')
+# Until 2PM I never turned off my wifi but was connected to 5G
+P_doms[0][5*60:14*60]+=P_base(cell='5G', wifi='searching')
+#Was home for rest of the night (connected to wifi)
+P_doms[0][14*60:]+= P_base(wifi='connected')
+
+#Sample 2
+#Stayed at home until around 11am
+P_doms[1][0:11*60]+=P_base(wifi='connected')
+#Went out until around 2pm
+P_doms[1][11*60:16*60]+=P_base(cell='5G', wifi='searching')
+#Was home for rest of night
+P_doms[1][16*60:]+=P_base(wifi='connected')
 
 #usages are: d (display), s (stream)
 #Event is:
-#(start time, duration, app name, battery energy drain %, has display?, streams data?, idle power component, grey scale, clock speed)
+#(start time, duration, app name, battery energy drain (percent as decimal), has display?, streams data?, idle power component, grey scale, clock speed)
 events_test = [
-    #Started coros run
-    (6*60, 42, 'coros', 0.34, 'd', '5G', 50, 'high'),
-    #Someone checked my locatoin
-    (8*60, 56, 'life360', 0.09, '', '', 200, 'med'),
-    #I played polytopia game
-    (17*60, 18, 'polytopia', 0.04, 'd', '', 130, 'high')
+    [
+        #Started coros run
+        (6*60, 48, 'coros', 0.32, '', '5G', 50, 'high'),
+        #Someone checked my locatoin
+        (8*60, 121, 'life360', 0.09, '', '', 200, 'low'),
+        #Sent some emails
+        (15*60, 5+5, 'gmail', 0.02, 'd', 'wifi', 70, 'med'),
+        #I played polytopia game
+        (17*60, 18, 'polytopia', 0.04, 'd', '', 130, 'high'),
+        #I googled something
+        (19*60, 8+18, 'chrome', 0.04, 'd', 'wifi', 100, 'low')
+    ],
+    #Tic toc 63%, maps 14, pandora 8, chrome 4, messages 3, phone 2
+    [
+        #Scrolled in the morning 0.72
+        (5*60, 3*60, 'tictoc', 0.27, 'd', 'wifi', 125, 'med'),
+        #Listend to music
+        (8*60, 3*60, 'pandora', 0.08, '', '', 125, 'med'),
+        #Took a drive
+        (11*60, 28, 'maps', 0.07, 'd', '5G', 200, 'med'),
+        #Googled something
+        (12*60, 16, 'chrome', 0.04, 'd', '5G', 200, 'low'),
+        #drove back home
+        (15*60+5, 28, 'maps', 0.07, 'd', '5G', 200, 'med'),
+        #scrolled some more
+        (16*60, 60+54, 'tictoc', 0.18, 'd', 'wifi', 125, 'med'),
+        #made a phone call
+        (18*60, 17, 'phone', 0.02, '', 'wifi', 200, 'low'),
+        #sent some texts
+        (18*60+30, 19, 'messages', 0.03, 'd', 'wifi', 200, 'low'),
+        #scrolled a bit 
+        (19*60, 2*60, 'tictoc', 0.18, 'd', 'wifi', 125, 'med')
+    ]
 ]
 
 events_sim = [
-    #Started coros run
-    (6*60, 42, 'coros', 0.34, 'd', '5G', 200, 'high'),
-    #Someone checked my locatoin
-    (8*60, 56, 'life360', 0.09, '', '', 200, 'med'),
-    #I played polytopia game
-    (17*60, 18, 'polytopia', 0.04, 'd', '', 130, 'high')
+    [
+        #Started coros run
+        (6*60, 48, 'coros', 0.32, '', '5G', 50, 'high'),
+        #Someone checked my locatoin
+        (8*60, 121, 'life360', 0.09, '', '', 200, 'low'),
+        #Sent some emails
+        (15*60, 5+5, 'gmail', 0.02, 'd', 'wifi', 70, 'med'),
+        #I played polytopia game
+        (17*60, 18, 'polytopia', 0.04, 'd', '', 130, 'high'),
+        #I googled something
+        (19*60, 8+18, 'chrome', 0.04, 'd', 'wifi', 100, 'low')
+    ],
+    #Tic toc 63%, maps 14, pandora 8, chrome 4, messages 3, phone 2
+    [
+        #Scrolled in the morning 0.72
+        (5*60, 3*60, 'tictoc', 0.27, 'd', 'wifi', 125, 'med'),
+        #Listend to music
+        (8*60, 3*60, 'pandora', 0.08, '', '', 125, 'med'),
+        #Took a drive
+        (11*60, 28, 'maps', 0.07, 'd', '5G', 200, 'med'),
+        #Googled something
+        (12*60, 16, 'chrome', 0.04, 'd', '5G', 200, 'low'),
+        #drove back home
+        (15*60+5, 28, 'maps', 0.07, 'd', '5G', 200, 'med'),
+        #scrolled some more
+        (16*60, 60+54, 'tictoc', 0.18, 'd', 'wifi', 125, 'med'),
+        #made a phone call
+        (18*60, 17, 'phone', 0.02, '', 'wifi', 200, 'low'),
+        #sent some texts
+        (18*60+30, 19, 'messages', 0.03, 'd', 'wifi', 200, 'low'),
+        #scrolled a bit 
+        (19*60, 2*60, 'tictoc', 0.18, 'd', 'wifi', 125, 'med')
+    ]
 ]
 
-def model_usage(events, P): 
+def model_usage(events, P_dom): 
+    P=P_dom.copy()
     for time, duration, name, bat_drain, display, stream, I, speed in events:
-        P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, base[time], I, speed)
-
-    print(usage_dict_global)
+        P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, P_dom[time], I, speed)
     return P
 
-def simulate(events, P, usage_dict):
+def simulate(events, P_dom, usage_dict):
+    P=P_dom.copy()
     for time, duration, name, bat_drain, display, stream, I, speed in events:
-        P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, base[time], I, speed, usage_dict)
+        P[time:time+duration]+= P_app(duration, name, bat_drain, display, stream, P_dom[time], I, speed, usage_dict)
     return P
 
-P1 = model_usage(events_test, base)
+P_mods=[]
+P_sims=[]
+
+for i in range(num_samples):
+    P_mods.append(model_usage(events_test[i], P_doms[i]))
+
+for k, v in usage_dict_global.items():
+    print(f"{k}: {v}")
+    print()
+
 #Average chip usage for now
 usage_dict_avg = {k: float(np.mean(v)) for k, v in usage_dict_global.items()}
-P2 = simulate(events_sim, P, usage_dict_avg)
+for i in range(num_samples):
+    P_sims.append(simulate(events_sim[i], P_doms[i], usage_dict_avg))
 
 t_ticknames = [i for i in range(1, 37, 5)]
 t_tickvals = np.array(t_ticknames)*60
 
 def analyze_power(P, max_bat):
+    E = max_bat-np.cumsum(P)/60
+    E_perc = E/max_bat
+    idx_empty = np.abs(E).argmin()
+
     def plot_fig(y, name):
         plt.plot(t, y)
         plt.xticks(t_tickvals, t_ticknames)
         plt.grid()
         plt.title(name)
-    E = max_bat-np.cumsum(P)/60
-    E_perc = E/max_bat
 
-    plt.subplot(2, 2, 1)
+    plt.subplot(2, 1, 1)
     plot_fig(P, 'Power (mW) vs time (hours)')
-    plt.subplot(2, 2, 2)
-    plot_fig(E, 'Energy (mWh) vs time (hours)')
-    plt.plot(t, [0]*len(t))
-    plt.subplot(2, 2, 3)
+    #plt.subplot(2, 2, 2)
+    #plot_fig(E, 'Energy (mWh) vs time (hours)')
+    #plt.plot(t, [0]*len(t))
+    plt.subplot(2, 1, 2)
     plot_fig(E_perc, 'Battery life (percent of full) vs time (hours)')
-    plt.plot(t, [0]*len(t))
+    plt.scatter(t[idx_empty], E_perc[idx_empty])
+    plt.annotate(
+        f"{t[idx_empty]//60}",
+        (t[idx_empty], E_perc[idx_empty]),
+        textcoords="offset points",
+        xytext=(4, 4)
+    )
+    #plt.plot(t, [0]*len(t))
 
-plt.figure()
-analyze_power(P1, max_bat)
-plt.figure()
-analyze_power(P2, max_bat)
-
-plt.show()
+for i in range(num_samples):
+    plt.figure()
+    analyze_power(P_mods[i], max_bat)
+    plt.figure()
+    analyze_power(P_sims[i], max_bat)
+    plt.show()
