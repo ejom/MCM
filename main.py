@@ -126,6 +126,8 @@ def plot_comparison(P_base, P_variants: dict[str, np.ndarray],
 # =====================================================================
 
 if __name__ == "__main__":
+    import os
+    os.makedirs("plots", exist_ok=True)
 
     for day_idx in range(len(EVENTS)):
         bl = baselines[day_idx]
@@ -143,7 +145,8 @@ if __name__ == "__main__":
                 evs, bl, usage_lut, DEFAULT_BRIGHTNESS, SCREEN_AREA_MM2,
                 brightness_override=bri,
             )
-        plot_comparison(P_base, variants, f"Day {day_idx+1} – Brightness sweep")
+        fig = plot_comparison(P_base, variants, f"Day {day_idx+1} – Brightness sweep")
+        fig.savefig(f"plots/day{day_idx+1}_brightness.png", dpi=150, bbox_inches="tight")
 
         # ── Sweep: greyscale ─────────────────────────────────────────
         variants = {}
@@ -153,7 +156,8 @@ if __name__ == "__main__":
                 evs, bl, usage_lut, DEFAULT_BRIGHTNESS, SCREEN_AREA_MM2,
                 greyscale_override=gs,
             )
-        plot_comparison(P_base, variants, f"Day {day_idx+1} – Greyscale sweep")
+        fig = plot_comparison(P_base, variants, f"Day {day_idx+1} – Greyscale sweep")
+        fig.savefig(f"plots/day{day_idx+1}_greyscale.png", dpi=150, bbox_inches="tight")
 
         # ── Sweep: clock speed (affects all apps) ────────────────────
         variants = {}
@@ -163,7 +167,8 @@ if __name__ == "__main__":
                 evs, bl, usage_lut, DEFAULT_BRIGHTNESS, SCREEN_AREA_MM2,
                 clock_override=clk,
             )
-        plot_comparison(P_base, variants, f"Day {day_idx+1} – Clock speed sweep")
+        fig = plot_comparison(P_base, variants, f"Day {day_idx+1} – Clock speed sweep")
+        fig.savefig(f"plots/day{day_idx+1}_clock.png", dpi=150, bbox_inches="tight")
 
         # ── Sweep: network configuration ─────────────────────────────
         # Each entry rebuilds the *entire* idle baseline with a uniform
@@ -184,6 +189,7 @@ if __name__ == "__main__":
             variants[label] = simulate(
                 evs, bl_net, usage_lut, DEFAULT_BRIGHTNESS, SCREEN_AREA_MM2,
             )
-        plot_comparison(P_base, variants, f"Day {day_idx+1} – Network sweep")
+        fig = plot_comparison(P_base, variants, f"Day {day_idx+1} – Network sweep")
+        fig.savefig(f"plots/day{day_idx+1}_network.png", dpi=150, bbox_inches="tight")
 
-    plt.show()
+    print("Plots saved to plots/")
